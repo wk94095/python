@@ -4,6 +4,7 @@ from dronekit import connect, VehicleMode
 import time
 
 
+
 vehicle = connect('udp:127.0.0.1:14550', wait_ready=True, baud=115200) #與飛機連線
 
 # 第1步，例項化object，建立視窗window
@@ -29,33 +30,57 @@ on_take = False
 e = tk.Entry(window,show = None)#顯示成明文形式
 e.insert(0, "0")
 e.pack()
-
+#設定自動起飛
 def arm_and_takeoff():
-    """
-    Arms vehicle and fly to aTargetAltitude.
-    """
+    global on_take
+    if on_take == False:
+        on_take =True
+        
+        """
+        Arms vehicle and fly to aTargetAltitude.
+        """
+    
+        print ("Basic pre-arm checks")
+        # Don't try to arm until autopilot is ready
+        while not vehicle.is_armable:
+            print (" Waiting for vehicle to initialise...")
+            time.sleep(1)
+    
+        print ("Arming motors")
+        # Copter should arm in GUIDED mode
+        vehicle.mode    = VehicleMode("GUIDED")
+        vehicle.armed   = True
+    
+        # Confirm vehicle armed before attempting to take off
+        while not vehicle.armed:
+            print (" Waiting for arming...")
+            time.sleep(1)
+    
+        print ("Taking off!")
+        vehicle.simple_takeoff(float(e.get())) # Take off to target altitude
+        var.set('takeoff')
+        # Wait until the vehicle reaches a safe height before processing the goto (otherwise the command
+        #  after Vehicle.simple_takeoff will execute immediately).
+    else:
+        on_take = False
+        var.set('')
 
-    print ("Basic pre-arm checks")
-    # Don't try to arm until autopilot is ready
-    while not vehicle.is_armable:
-        print (" Waiting for vehicle to initialise...")
-        time.sleep(1)
-
-    print ("Arming motors")
-    # Copter should arm in GUIDED mode
-    vehicle.mode    = VehicleMode("GUIDED")
-    vehicle.armed   = True
-
-    # Confirm vehicle armed before attempting to take off
-    while not vehicle.armed:
-        print (" Waiting for arming...")
-        time.sleep(1)
-
-    print ("Taking off!")
-    vehicle.simple_takeoff(float(e.get())) # Take off to target altitude
-
-    # Wait until the vehicle reaches a safe height before processing the goto (otherwise the command
-    #  after Vehicle.simple_takeoff will execute immediately).
+#設定模式選單
+def mode_select():
+    global clicked_mode, drop_mode
+    clicked_mode = tk.StringVar()
+    bds = ["STABILIZE",
+           "ALT_HOLD",
+           "AUTO",
+           "GUIDED",
+           "LOITER",
+           "RTL",
+           "LAND",]
+    clicked_mode.set(bds[0])
+    drop_mode = tk.OptionMenu(window, clicked_mode, *bds)
+    drop_mode['menu'].config(fg = "green")
+    drop_mode.config(width=20)
+    drop_mode.pack()
 
 def connect():
     global on_hit
@@ -65,6 +90,7 @@ def connect():
     else:
         on_hit = False
         var.set('')
+#設定RTL模式
 def rtl():
     global on_mode
     if on_mode == False:
@@ -76,8 +102,11 @@ def rtl():
         on_mode = False
         RTL["state"] = "normal"
         var.set('')
-    
-print(vehicle.mode.name != 'RTL') 
+def mode():
+    print(clicked_mode.get())
+    vehicle.mode = VehicleMode(clicked_mode.get())
+    var.set(clicked_mode.get())
+
 # 第5步，在視窗介面設定放置Button按鍵
 #b = tk.Button(window, text='connect', font=('Arial', 12), width=10, height=1, command=connect)
 #b.pack()
@@ -85,7 +114,11 @@ takeoff = tk.Button(window, text='takeoff', font=('Arial', 12), width=30, height
 takeoff.pack()
 RTL = tk.Button(window, text='RTL', font=('Arial',12),width=20, height=1, command=rtl, fg='red')
 RTL.pack()
+mode = tk.Button(window, text='設定', font=('Helvetica', 12), width=20, height=1, command=mode)
+mode.pack()
 
+#執行mode_select()
+mode_select()
 # 第6步，主視窗迴圈顯示
 window.mainloop()
 vehicle.close()
